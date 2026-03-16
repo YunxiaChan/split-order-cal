@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>分批拆单计算器（简洁严谨版）</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            background: #0f1419;
+            color: #e6e6e6;
+            max-width: 700px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .card {
+            background: #1a1f26;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        h1 {
+            font-size: 1.4rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        .desc {
+            color: #8a9199;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .base-params {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.4rem;
+            color: #c9cdd4;
+            font-size: 0.9rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.7rem;
+            background: #262d36;
+            border: 1px solid #363c46;
+            border-radius: 6px;
+            color: #e6e6e6;
+            font-size: 1rem;
+        }
+        input:focus {
+            outline: none;
+            border-color: #00a699;
+        }
+        .direction-group {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 1.2rem;
+            align-items: center;
+        }
+        .direction-option {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            cursor: pointer;
+        }
+        .direction-option input {
+            width: auto;
+        }
+        .batches-container {
+            margin-bottom: 1.2rem;
+        }
+        .batch-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 0.5fr;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            color: #8a9199;
+            font-size: 0.85rem;
+        }
+        .batch-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 0.5fr;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .btn-delete {
+            background: #ff4d4f;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.7rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .btn-add {
+            background: #00a699;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.7rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            width: 100%;
+            margin-top: 0.4rem;
+        }
+        button.calculate {
+            width: 100%;
+            padding: 0.8rem;
+            background: #00a699;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        button.calculate:hover {
+            background: #009185;
+        }
+        .result {
+            margin-top: 1.2rem;
+            padding: 1rem;
+            background: #1e2936;
+            border-radius: 8px;
+            display: none;
+        }
+        .result h3 {
+            margin-bottom: 0.8rem;
+            font-size: 1rem;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid #2a323d;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .label { color: #8a9199; }
+        .value { color: #fff; font-weight: 500; }
+        .safe { color: #00a699; font-weight: 600; }
+        .danger { color: #ff4d4f; font-weight: 600; }
+        .chart-box {
+            margin: 1rem 0;
+            display: flex;
+            justify-content: center;
+        }
+        canvas { max-width: 280px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>分批拆单计算器 📊</h1>
+    <p class="desc">行情没到心理点位，提前拆单，保证总亏损不变</p>
+
+    <div class="base-params">
+        <div class="form-group">
+            <label>计划总手数</label>
+            <input type="number" id="totalLots" step="0.01" placeholder="请输入计划总手数">
+        </div>
+        <div class="form-group">
+            <label>心理价位（最后一批进场）</label>
+            <input type="number" id="targetPrice" step="0.1" placeholder="请输入心理价位">
+        </div>
+        <div class="form-group">
+            <label>止损价位</label>
+            <input type="number" id="stopLossPrice" step="0.1" placeholder="请输入止损价位">
+        </div>
+        <div class="form-group direction-group">
+            <label>方向</label>
+            <label class="direction-option">
+                <input type="radio" name="direction" value="short"> 空单
+            </label>
+            <label class="direction-option">
+                <input type="radio" name="direction" value="long" checked> 多单
+            </label>
+        </div>
+    </div>
+
+    <div class="batches-container">
+        <div class="batch-header">
+            <span>已进场价位</span>
+            <span>手数</span>
+            <span>删</span>
+        </div>
+        <div id="batchesList">
+            <div class="batch-row">
+                <input type="number" class="batch-price" step="0.1" placeholder="请输入进场价位">
+                <input type="number" class="batch-lots" step="0.01" placeholder="请输入手数">
+                <button class="btn-delete" onclick="removeBatch(this)">-</button>
+            </div>
+        </div>
+        <button class="btn-add" onclick="addBatch()">+ 添加批次</button>
+    </div>
+
+    <button class="calculate" onclick="calculate()">计算应补手数</button>
+
+    <div id="result" class="result">
+        <h3>拆单结果</h3>
+        <div class="result-item">
+            <span class="label safe"><strong>【仅当前已进场】心理价位应补：</strong></span>
+            <span class="value safe" id="lastLots"></span>
+        </div>
+        <div class="result-item">
+            <span class="label">实际总手数：</span>
+            <span class="value" id="actualTotal"></span>
+        </div>
+        <div class="result-item">
+            <span class="label">满仓止损亏损：</span>
+            <span class="value" id="fullLoss"></span>
+        </div>
+        <div class="result-item">
+            <span class="label">拆单后总亏损：</span>
+            <span class="value" id="partialLoss"></span>
+        </div>
+        <div class="result-item" id="overLossRow" style="display:none;">
+            <span class="label danger"><strong>当前已超亏损：</strong></span>
+            <span class="value danger" id="overLoss"></span>
+        </div>
+        <div class="result-item" id="errorRow">
+            <span class="label">误差：</span>
+            <span class="value" id="errorRate"></span>
+        </div>
+
+        <div class="chart-box">
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+function addBatch() {
+    const list = document.getElementById('batchesList');
+    const div = document.createElement('div');
+    div.className = 'batch-row';
+    div.innerHTML = `
+        <input type="number" class="batch-price" step="0.1" placeholder="请输入进场价位">
+        <input type="number" class="batch-lots" step="0.01" placeholder="请输入手数">
+        <button class="btn-delete" onclick="removeBatch(this)">-</button>
+    `;
+    list.appendChild(div);
+}
+
+function removeBatch(btn) {
+    const rows = document.querySelectorAll('.batch-row');
+    if (rows.length <= 1) return alert('至少留一批');
+    btn.parentElement.remove();
+}
+
+// 向下取整到 0.01 倍数（严格不超亏损）
+function floor001(v) {
+    return Math.floor(v * 100) / 100;
+}
+
+function calculate() {
+    const T = +document.getElementById('totalLots').value;
+    const P_target = +document.getElementById('targetPrice').value;
+    const P_stop = +document.getElementById('stopLossPrice').value;
+    const dir = document.querySelector('input[name="direction"]:checked').value;
+
+    // 新增空值校验
+    if (isNaN(T) || T <= 0) return alert('请输入有效的计划总手数');
+    if (isNaN(P_target)) return alert('请输入有效的心理价位');
+    if (isNaN(P_stop)) return alert('请输入有效的止损价位');
+
+    if (dir === 'short' && P_stop <= P_target)
+        return alert('空单止损必须 > 心理价位');
+    if (dir === 'long' && P_stop >= P_target)
+        return alert('多单止损必须 < 心理价位');
+
+    const batches = [];
+    let sumLoss = 0;
+    let sumLots = 0;
+    document.querySelectorAll('.batch-row').forEach((row, idx) => {
+        const p = +row.querySelector('.batch-price').value;
+        const l = +row.querySelector('.batch-lots').value;
+        if (!isNaN(p) && !isNaN(l) && l > 0) {
+            batches.push({ name: `批次${idx+1}`, lots: l });
+            sumLoss += l * (dir === 'short' ? (P_stop - p) : (p - P_stop));
+            sumLots += l;
+        }
+    });
+
+    if (batches.length === 0) return alert('请填已进仓位');
+
+    const lossPer1LotTarget = dir === 'short' ? (P_stop - P_target) : (P_target - P_stop);
+    const fullLoss = T * lossPer1LotTarget;
+    const lastLots = floor001(Math.max(0, (fullLoss - sumLoss) / lossPer1LotTarget));
+    const actualTotal = sumLots + lastLots;
+    const partialLoss = sumLoss + lastLots * lossPer1LotTarget;
+    const errorRate = Math.abs((partialLoss - fullLoss) / fullLoss * 100);
+    const overLoss = Math.max(0, partialLoss - fullLoss);
+
+    // 处理显示逻辑
+    const overLossRow = document.getElementById('overLossRow');
+    const errorRow = document.getElementById('errorRow');
+    if (sumLoss > fullLoss) {
+        alert(`⚠️ 当前已进批次亏损已超过计划满仓亏损，实际会多亏 ${overLoss.toFixed(2)}`);
+        overLossRow.style.display = 'flex';
+        errorRow.style.display = 'none';
+    } else {
+        overLossRow.style.display = 'none';
+        errorRow.style.display = 'flex';
+    }
+
+    document.getElementById('lastLots').textContent = lastLots.toFixed(2);
+    document.getElementById('actualTotal').textContent = actualTotal.toFixed(2);
+    document.getElementById('fullLoss').textContent = fullLoss.toFixed(2);
+    document.getElementById('partialLoss').textContent = partialLoss.toFixed(2);
+    document.getElementById('overLoss').textContent = `+${overLoss.toFixed(2)}`;
+    document.getElementById('errorRate').textContent = errorRate.toFixed(2) + '%';
+    document.getElementById('result').style.display = 'block';
+
+    const pieData = [...batches];
+    if (lastLots > 0) pieData.push({ name: '心理价位补', lots: lastLots });
+    drawPie(pieData);
+}
+
+function drawPie(data) {
+    const canvas = document.getElementById('pieChart');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 280;
+    canvas.height = 280;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const total = data.reduce((sum, d) => sum + d.lots, 0);
+    if (total <= 0) return;
+
+    const cx = 140, cy = 140, r = 100;
+    const colors = ['#00a699', '#ff4d4f', '#faad14', '#722ed1', '#13c2c2', '#eb2f96'];
+
+    let startAngle = 0;
+    data.forEach((item, idx) => {
+        const ratio = item.lots / total;
+        const endAngle = startAngle + ratio * 2 * Math.PI;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = colors[idx % colors.length];
+        ctx.fill();
+
+        const midAngle = startAngle + (endAngle - startAngle) / 2;
+        const textX = cx + r * 0.6 * Math.cos(midAngle);
+        const textY = cy + r * 0.6 * Math.sin(midAngle);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.name, textX, textY - 8);
+        ctx.fillText(`${item.lots.toFixed(2)}手`, textX, textY + 8);
+
+        startAngle = endAngle;
+    });
+}
+</script>
+</body>
+</html>
